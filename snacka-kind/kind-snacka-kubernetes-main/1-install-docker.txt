@@ -1,0 +1,1 @@
+Run commands in install-docker-ce-fedora.sh

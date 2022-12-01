@@ -1,0 +1,8 @@
+# verbose log. kubeadm, kindnet setup
+kind create cluster --name kind-3 -v 10
+
+# gå igenom output
+# kubeadm, config filer, kindnet
+
+# vi kan byta ut kindnet
+

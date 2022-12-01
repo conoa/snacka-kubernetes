@@ -1,0 +1,39 @@
+#
+# Node port
+# 
+cat << EOF > kind-nodeport-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30000
+    hostPort: 30000
+    listenAddress: "0.0.0.0" # Optional, defaults to "0.0.0.0"
+    protocol: tcp # Optional, defaults to tcp
+EOF
+kind create cluster --config kind-nodeport-config.yaml --name kind-nodeport
+
+kubectl create deployment web --image=nginx:latest
+cat << EOF > nodeport-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: web
+  name: web
+  namespace: default
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+  - nodePort: 30000
+    port: 8080
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: web
+  type: NodePort
+EOF
+kubectl apply -f nodeport-service.yaml
+
+curl -v http://0.0.0.0:30000

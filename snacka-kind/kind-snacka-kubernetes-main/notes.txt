@@ -1,0 +1,283 @@
+#
+# High-level
+# Det här vad jag kommer göra idag. 1. Install 2. Skapa klusters o access 3. Vanliga problem.  
+#
+
+# slides
+
+# 
+sudo sysctl -w fs.file-max=500000
+
+####################################
+## Install
+####################################
+
+# install docker.io
+
+curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64
+chmod +x ./kind
+mv ./kind ~/bin/kind
+
+####################################
+## Kind basics
+####################################
+kind 
+kind --help
+kind create cluster --name kind-1
+kind get clusters
+kind get nodes --name kind-1
+kind get kubeconfig --name kind-1
+
+kubectl config use-context kind-kind
+kubectl get node
+kubectl config use-context kind-kind-2
+kubectl get node
+
+####################################3
+# gettin access access
+####################################3
+
+# access
+kubectl config get-contexts
+
+# kindnet
+kubectl get po -n=kube-system
+
+####################################3
+# containers
+####################################3
+# containers and networks
+docker ps
+docker network inspect kind
+
+###################################
+# htop on the nodes
+###################################
+docker container exec -it kind-1-control-plane /bin/bash
+apt-get -y update && apt-get -y install htop
+
+###################################
+# htop on the nodes
+###################################
+# verbose log. kubeadm, kindnet setup
+kind create cluster --name kind-2 -v 10
+
+###############################
+# Multi-node cluster
+###############################
+
+#
+# HA cluster
+#
+cat << EOF > kind-ha-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: control-plane
+- role: control-plane
+- role: worker
+- role: worker
+- role: worker
+EOF
+
+kind create cluster --config kind-ha-config.yaml --name ha-node-cluster
+
+#
+# Skapa ett till kluster, felsöka
+#
+
+
+#
+# Privata Use Case
+#
+
+# 1. Lära mig kubernetes - 
+# 2. Private use case - metallb
+
+#
+# crictl - kolla lite hur det se ur
+#
+crictl ls
+lsns -t pid
+
+# hosten
+
+export PID=$(docker inspect -f '{{.State.Pid}}' multi-node-cluster-control-plane3)
+sudo ls -l  /proc/$PID/exe 
+lrwxrwxrwx 1 root root 0 Aug 31 22:30 /proc/27128/exe -> /usr/lib/systemd/systemd
+
+#
+#
+#
+Why kind?
+kind supports multi-node (including HA) clusters
+kind supports building Kubernetes release builds from source
+support for make / bash or docker, in addition to pre-published builds
+kind supports Linux, macOS and Windows
+kind is a CNCF certified conformant Kubernetes installer
+
+
+#
+# Disable default CNI plugin (kindnet) and install calico
+#
+# KIND ships with a simple networking implementation (“kindnetd”) 
+# based around standard CNI plugins (ptp, host-local, …) and simple netlink routes.
+
+cat << EOF > disable-default-cni-plugin.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  # the default CNI will not be installed
+  disableDefaultCNI: true
+EOF
+kind create cluster --name disable-kindnet --config disable-default-cni-plugin.yaml
+kubectl get node
+kubectl get po -n=kube-system
+
+# Install calico
+helm repo add projectcalico https://docs.projectcalico.org/charts
+helm install calico projectcalico/tigera-operator --version v3.20.0
+watch kubectl get pods -n calico-system
+
+# Install sample app
+kubectl apply -f ./sample-app
+kubectl port-forward svc/kuard 8080:80
+
+#
+# Troubleshooting: https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
+#
+
+#
+
+# Too many open files
+
+kind create cluster --name=kind-trouble --retain
+kind export logs --name=kind-nodeport
+
+#
+# Metallb
+#
+
+cat << EOF > kind-metallb-cluster.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: control-plane
+- role: control-plane
+- role: worker
+- role: worker
+- role: worker
+EOF
+kind create cluster --config kind-metallb-cluster.yaml --name kind-metallb-cluster 
+
+kubectl create namespace metallb
+
+helm install metallb bitnami/metallb --namespace metallb
+
+# Set ip pool range from docker inspect kind
+
+cat <<EOF | kubectl apply -n metallb -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb
+  name: metallb-config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.18.0.150-172.18.0.200
+EOF
+echo "Waiting for metallb controller to initialize"
+
+kubectl wait --namespace metallb \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/instance=metallb \
+  --timeout=120s
+kubectl get po -n=metallb
+
+# install ingress nginx
+
+helm uninstall nginx -n=nginx
+kubectl create namespace nginx
+helm repo add nginx-stable https://helm.nginx.com/stable
+helm repo update
+helm install nginx nginx-stable/nginx-ingress --namespace nginx \
+             --set controller.nginxDebug=true \
+             --set-string controller.config.proxy-body-size="0".
+
+echo "Waiting for ingress controller to initialize"
+kubectl wait --namespace nginx \
+  --for=condition=ready pod \
+  --selector=app=nginx-nginx-ingress \
+  --timeout=120s
+
+# Metallb demo
+kubectl apply -f https://kind.sigs.k8s.io/examples/loadbalancer/usage.yaml
+
+LB_IP=$(kubectl get svc/foo-service -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo ${LB_IP}
+kubectl get svc
+
+# should output foo and bar on separate lines 
+for _ in {1..10}; do
+  curl ${LB_IP}:5678
+done
+
+# Tar en stund metallb att byta mac address för tjänstens vip
+
+[marten@fedora kind-clusters]$ sudo tcpdump -vv -i br-bfb4852e62f3 broadcast and arp and arp[6:2] == 2
+dropped privs to tcpdump
+tcpdump: listening on br-bfb4852e62f3, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+23:05:05.278175 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:06.162398 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:07.262127 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:08.362651 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:09.461821 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:14.153449 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:05:14.197148 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:14.961708 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:16.061954 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:17.161945 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:05:18.261942 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:06 (oui Unknown), length 46
+23:08:45.271171 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:08:45.514462 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:08:46.614899 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:08:47.714840 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:08:48.814423 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:08:49.915152 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:09:21.023814 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:09:21.815020 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:09:22.914595 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:09:24.014768 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:09:25.115268 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:26.337065 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:26.514940 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:27.614869 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:28.715725 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:29.815103 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:30.914426 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.151 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:49.725097 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:50.714666 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:51.814897 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:52.915336 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+23:14:54.015342 ARP, Ethernet (len 6), IPv4 (len 4), Reply 172.18.0.150 is-at 02:42:ac:12:00:04 (oui Unknown), length 46
+
+
+
+tcpdump -i eth99 broadcast and arp and arp[6:2] == 2
+
+
+
+#
+# Ingress
+#
+
+#
+# Loadbalancer
+#
+

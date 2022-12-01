@@ -1,0 +1,103 @@
+#
+# Disable default CNI plugin (kindnet) and install calico
+#
+# KIND ships with a simple networking implementation (“kindnetd”) 
+# based around standard CNI plugins (ptp, host-local, …) and simple netlink routes.
+
+cat << EOF > metallb-cluster.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  # the default CNI will not be installed
+  disableDefaultCNI: true
+EOF
+kind create cluster --name disable-kindnet --config metallb-cluster.yaml
+kubectl get node
+kubectl get po -n=kube-system
+
+#
+# Install calico
+#
+helm repo add projectcalico https://docs.projectcalico.org/charts
+helm install calico projectcalico/tigera-operator --version v3.20.0
+watch kubectl get pods -n calico-system
+
+
+#
+# Install metallb
+#
+
+kubectl create namespace metallb
+
+# Install using helm
+helm repo add --force-update traefik https://helm.traefik.io/traefik
+helm repo update
+
+helm install metallb bitnami/metallb --namespace metallb
+
+docker inspect kind|grep Subnet
+# 172.20.0.0/16
+
+# Configure metallb
+cat <<EOF | kubectl apply -n metallb -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb
+  name: metallb-config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.20.0.120-172.20.0.130      
+EOF
+
+kubectl get all -n=metallb
+
+echo "Waiting for metallb controller to initialize"
+kubectl wait --namespace metallb \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/instance=metallb \
+  --timeout=120s
+
+kubectl get po -n=metallb -w
+kubectl describe configmap -n=metallb
+kubectl logs metallb-controller-565fcb9f59-5c42b -n=metallb
+
+#
+# Install nginx
+#
+helm uninstall nginx -n=nginx
+kubectl create namespace nginx
+helm repo add nginx-stable https://helm.nginx.com/stable
+helm repo update
+helm install nginx nginx-stable/nginx-ingress --namespace nginx \
+             --set controller.nginxDebug=true \
+             --set-string controller.config.proxy-body-size="0".
+
+echo "Waiting for ingress controller to initialize"
+kubectl wait --namespace nginx \
+  --for=condition=ready pod \
+  --selector=app=nginx-nginx-ingress \
+  --timeout=120s
+
+kubectl get svc -n=nginx
+NAME                  TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
+nginx-nginx-ingress   LoadBalancer   10.96.22.134   172.20.0.120   80:32255/TCP,443:32631/TCP   47s
+
+curl -v http://172.20.0.120
+
+# Metallb demo
+kubectl apply -f https://kind.sigs.k8s.io/examples/loadbalancer/usage.yaml
+
+LB_IP=$(kubectl get svc/foo-service -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo ${LB_IP}
+kubectl get svc
+
+# should output foo and bar on separate lines 
+for _ in {1..10}; do
+  curl ${LB_IP}:5678
+done
+

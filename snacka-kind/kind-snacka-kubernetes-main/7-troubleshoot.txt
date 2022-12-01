@@ -1,0 +1,18 @@
+# Ta inte bort det trasiga klustret med retain flaggan.
+kind create cluster --config multi-cluster-2-config.yaml --name multi-cluster-2 --retain
+
+docker ps |grep multi-cluster-2
+docker exec -it multi-cluster-2-worker3 /bin/bash
+journalctl |grep Failed
+
+# https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
+
+sudo sysctl fs.inotify.max_user_watches=524288
+sudo sysctl fs.inotify.max_user_instances=512
+
+kind delete cluster --name multi-cluster-2
+
+kind create cluster --config multi-cluster-2-config.yaml --name multi-cluster-2
+kubectl get node
+kind get clusters
+docker ps

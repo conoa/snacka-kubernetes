@@ -1,0 +1,15 @@
+# kindnet
+kubectl get po -n=kube-system
+
+
+# containers and networks
+docker ps
+docker network inspect kind
+
+
+# node processes and systemd
+docker container exec -it kind-control-plane /bin/bash
+ps aux
+systemctl status
+crictl ls
+lsns -t pid

@@ -1,0 +1,11 @@
+# access
+kubectl config get-contexts
+
+# switch back to kind
+kubectl config use-context kind-kind
+kubectl config get-contexts
+kubectl get node
+
+# swtich to kind-2
+kubectl config use-context kind-kind-2
+kubectl get node

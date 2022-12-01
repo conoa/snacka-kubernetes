@@ -1,0 +1,14 @@
+
+kind create cluster
+
+kubectl get node
+kubectl get ns
+kubectl get po -n=kube-system
+
+kind create cluster
+
+kind create cluster --help
+
+kind create cluster --name kind-2
+kubectl get node
+
