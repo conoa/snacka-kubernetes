@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  labels:
+    app: kuard
+  name: kuard-deployment
+  namespace: ingress-basic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kuard
+  template:
+    metadata:
+      labels:
+        app: kuard
+    spec:
+      containers:
+      - image: gcr.io/kuar-demo/kuard-amd64:1
+        imagePullPolicy: IfNotPresent
+        name: kuard
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuard-service
+  namespace: ingress-basic
+  labels:
+    app: kuard
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kuard
