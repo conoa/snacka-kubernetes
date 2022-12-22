@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+
+namespace: prod
+
+patchesStrategicMerge:
+- redis.yaml
+
+patchesJson6902:
+- patch: |-
+    - op: replace
+      path: /spec/ports/0/port
+      value: 82
+  target:
+    kind: Service
+    name: azure-vote-front
+    version: v1
+
+replicas:
+- count: 2
+  name: azure-vote-front
+images:
+- name: bitnami/redis:latest
+  newName: bitnami/redis
+  newTag: 7.0.5

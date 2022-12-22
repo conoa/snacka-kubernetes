@@ -7,3 +7,4 @@ Repository for snacka-kubernetes demos
 * Snacka Kind (Mårten Cassel)
 * Snacka Istio (Kenneth)
 * Snacka Kubernetes Security (Kenneth)
+* Snacka Kustomize (Fredrik)

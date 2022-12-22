@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- github.com/bromaniac/snacka-k8s.git
+
+namespace: stage
+
+patchesJson6902:
+- path: loadbalancer.json
+  target:
+    kind: Service
+    name: azure-vote-front
+
