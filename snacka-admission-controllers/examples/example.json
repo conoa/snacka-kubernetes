@@ -1,0 +1,37 @@
+{
+  "apiVersion": "admission.k8s.io/v1",
+  "kind": "AdmissionReview",
+  "response": {
+    "uid": "<value from request.uid>",
+    "allowed": true
+  }
+}
+
+{
+  "apiVersion": "admission.k8s.io/v1",
+  "kind": "AdmissionReview",
+  "response": {
+    "uid": "<value from request.uid>",
+    "allowed": false,
+    "status": {
+      "code": 403,
+      "message": "You cannot do this because it is Tuesday and your name starts with A"
+    }
+  }
+}
+
+---
+
+{
+  "apiVersion": "admission.k8s.io/v1",
+  "kind": "AdmissionReview",
+  "response": {
+    "uid": "<value from request.uid>",
+    "allowed": true,
+    "patchType": "JSONPatch",
+    "patch": "W3sib3AiOiAiYWRkIiwgInBhdGgiOiAiL3NwZWMvcmVwbGljYXMiLCAidmFsdWUiOiAzfV0="
+  }
+}
+
+[{"op": "add", "path": "/spec/replicas", "value": 3}]
+

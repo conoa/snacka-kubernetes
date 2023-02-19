@@ -1,0 +1,81 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mutateme
+  labels:
+    app: mutateme
+spec:
+  publishNotReadyAddresses: true
+  ports:
+    - port: 443
+      targetPort: 8443
+  selector:
+    app: mutateme
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mutateme
+  labels:
+    app: mutateme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mutateme
+  template:
+    metadata:
+      name: mutateme
+      labels:
+        app: mutateme
+    spec:
+      volumes:
+      - name: certs
+        secret:
+          secretName: mutate-webhook-tls-certs
+      containers:
+        - name: mutator
+          image: alpha60/rusty-admission:latest
+          env:
+            - name: WEBHOOK_LOG
+              value: "debug"
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /certs
+              name: certs
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutateme
+  labels:
+    app: mutateme
+webhooks:
+  - name: mutateme.conoa.se
+    clientConfig:
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN4RENDQWF3Q0NRRDhnbkpYdzRSMDZqQU5CZ2txaGtpRzl3MEJBUXNGQURBa01TSXdJQVlEVlFRRERCbGgKWkcxcGMzTnBiMjR0WTI5dWRISnZiR3hsY2kxa1pXMXZNQjRYRFRJek1ERXlNekV6TkRReU5sb1hEVEl6TURJeQpNakV6TkRReU5sb3dKREVpTUNBR0ExVUVBd3daWVdSdGFYTnphVzl1TFdOdmJuUnliMnhzWlhJdFpHVnRiekNDCkFTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBS3ZSZHpDeWZ5OW1TUS8xQkRHSHNJWmwKTDBzZ09rZlRhOGIyR0tVTS9QNERIRjZucWxrK2RjRG1qam92RmQvcmI4dVk0TUJmd3RiUFNFOTNqbFZlYnlZWQpNSUdtdlZ2ckhpU0lOOWJIS0pYMWtZUTl0RnlDakZqSHpKUG5LZVdjVGdoandqNDg1clJyMWxHSG9GUkNkYkNqCnZ6L2hmSGZzN1NsSnFTc1FxMkU3YWpnUmdubWY5R254S3ZEekhwcUZDV0hHVEVoQWxxZHltUVJjckFwTUVzV2cKL0pGRkptTWNQOG5CQXpCUk0vYjAybFIxcWtlTkVETGxVWVlzTHkzK0l3eXhzSjJhYlRYNmFMVlQzcU8zeDBVagowVmp6cC9peGJhOWszb2xRTG5XT2RLZTJ3MWZ6NlVMZENhbGd3VzFEQ25JVFlkRExLRUI3N2UwWWJudXA3OEVDCkF3RUFBVEFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBaEFURDRDL3hUcHJNYXRTR2ZzYXFYdTZpRVk2WEpQdW0KaWVjeU5Gb3ViREk5L0N2aFljWWNmaXN0bCt6WmdqeDFRMmdDVG9LWk90R0htQmhNUmdXSXNYK2p0bmVGNnFYTwpCVmNKMTJFaGFQR2dXYURtZDhvRDhOZ25haU1US3BwZ0RMT2NQeFFhcCt3ZFQxNnZ2YWQxSWRYQXlqc1pJRm1rCmIxV25IQmJqbUJac0ppeXF5SmZ0TGo2TzZMbFByMS82QVFYMDNpaDNCdG00ejFjV1V6SzJUUVFGZDBKTXJKRDUKbGJCdDZVZmRBUXF1SHB0VUxha0U3Z2dCQ2dRblFPUTd3N29kaVBDY3E0UmFwS3g2WnAvZ3h6V1JqaXVOTFNpTwplc3Mzdmh1NnRtUkNzT21qcWFWd0pZQkJIeG8xU3duUDNmVWl0eXlSWW5vVnBZR0IyTHBKOVE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      service:
+        name: mutateme
+        namespace: default
+        path: "/mutate"
+        port: 443
+    admissionReviewVersions: ["v1beta1", "v1"]
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    sideEffects: None
+    timeoutSeconds: 5
+    reinvocationPolicy: Never
+    failurePolicy: Ignore

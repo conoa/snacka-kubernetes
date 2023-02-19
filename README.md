@@ -8,3 +8,4 @@ Repository for snacka-kubernetes demos
 * Snacka Istio (Kenneth)
 * Snacka Kubernetes Security (Kenneth)
 * Snacka Kustomize (Fredrik)
+* Snacka Admission Controllers (Fredrik)

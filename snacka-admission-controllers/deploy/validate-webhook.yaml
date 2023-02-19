@@ -1,0 +1,81 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: validateme
+  labels:
+    app: validateme
+spec:
+  publishNotReadyAddresses: true
+  ports:
+    - port: 443
+      targetPort: 8443
+  selector:
+    app: validateme
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validateme
+  labels:
+    app: validateme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: validateme
+  template:
+    metadata:
+      name: validateme
+      labels:
+        app: validateme
+    spec:
+      volumes:
+      - name: certs
+        secret:
+          secretName: validate-webhook-tls-certs
+      containers:
+        - name: validator
+          volumeMounts:
+          - mountPath: /certs
+            name: certs
+          image: alpha60/rusty-admission:latest
+          env:
+            - name: WEBHOOK_LOG
+              value: "debug"
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validateme
+  labels:
+    app: validateme
+webhooks:
+  - name: validateme.conoa.se # must be valid dns name
+    clientConfig:
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN4RENDQWF3Q0NRREhxcWJ2UFpJalNUQU5CZ2txaGtpRzl3MEJBUXNGQURBa01TSXdJQVlEVlFRRERCbGgKWkcxcGMzTnBiMjR0WTI5dWRISnZiR3hsY2kxa1pXMXZNQjRYRFRJek1ERXlNREV4TlRjeE0xb1hEVEl6TURJeApPVEV4TlRjeE0xb3dKREVpTUNBR0ExVUVBd3daWVdSdGFYTnphVzl1TFdOdmJuUnliMnhzWlhJdFpHVnRiekNDCkFTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTTAyU1VORmVFSGpmbEkydUpXVGVhUUMKUmE3ak1OcFgvcy9HRytIc3BtQXN3RlV0S0xaamliQnJHVmFJM3FJc005U2pqZG5jQkI5NEVPYUd0V2J0eWIwdgptazhBVmRkdEtrdW53ZGxHZkw3WjdvRld4MmFLbVNIU3ducDF4Z3YzdEsxc0RsYjlFam5yV2tsOVdRTjRURTR5Cjg3SnpzU2RUZyttaHdGd0R4UHBGcitaRC9kR1dNaVBiU3ZpSUlBbnZyVVErL1F5QThadmtaRDJOT1Bhc0pseDAKUTNSeGlaWC9aNFpDOWZGT0xVQkVDK1Q3MGkxOExwTUsxS2thWFNvVDVMdjJrMnhucmx1bUZnRkpla2lmeC9hbQo5UktXTE5xcFlyVnB1QUo5UHV1dzY2V21JZ3AvaHh6RzQyanZaeEtrQ2dUbnFaekx1ZnI1TlVsMkRMMFdCNU1DCkF3RUFBVEFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBdnF2dHh5NzNDdWZYVWFGNVoyYzhhMS91VTVnelFrTnIKMVE1TUNnQXpzVlV1SmdhZTRTZ1M5ditGL1F3R1lGQVltaytPSk1FV2JqRDV1VDNiU25yOWVjS1RaMk1ibFZpNQpNUE9CVE95eG1MYVN3Zmx3NzV3b0lTVGpBalpzSTZJQjN0N1pRQmpnZnFUNVFaVnovS0pWd0k4bnI3QVpyeXNsClJRUnlLdTJRUEhYSWlOcDl0RGVtQytZVXpQT1Rmdnpmb3Voc016d0RRb1VSczlTNUhoamU3RlBkQUpRdjJrSnUKYWJKaXRZbUJOeGpuSUtIbHhIYnI3dkpER3d5OWFQTE0wc3d6UzN5SDJpZjJKWWNWMXVVc2JKOVBzalM2bXBFVAozUDdaT25TaVVsOFZiemtzeTZUWnoxMERKUXR1R3lpaFA2QWRwQnFPOWJjS1owQkNWWEFadWc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      service:
+        name: validateme # validateme.default.svc
+        namespace: default
+        path: "/validate"
+        port: 443
+    admissionReviewVersions: ["v1beta1", "v1"]
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    sideEffects: None
+    timeoutSeconds: 5 # 1 - 30 sec
+    failurePolicy: Ignore
+
