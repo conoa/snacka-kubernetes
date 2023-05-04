@@ -9,3 +9,4 @@ Repository for snacka-kubernetes demos
 * Snacka Kubernetes Security (Kenneth)
 * Snacka Kustomize (Fredrik)
 * Snacka Admission Controllers (Fredrik)
+* Snacka WASM (Fredrik)
