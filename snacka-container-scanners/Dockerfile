@@ -20,6 +20,15 @@ COPY --from=build /code/dist/spa/ /usr/share/nginx/html/
 COPY ./frontend/nginx.conf /etc/nginx/nginx.conf
 
 
+FROM production AS zero
+
+RUN echo -e 'PRETTY_NAME="Linux"\nNAME="Linux"\nVERSION_ID="99"\nVERSION="99 (asd)"\nID=Linux' > /etc/os-release
+RUN rm -f /etc/lsb-release
+RUN rm -f /etc/alpine-release
+RUN rm -rf /etc/apk
+RUN rm -rf /lib/apk
+
+
 FROM docker.io/nginx:latest AS noos
 
 RUN echo -e 'PRETTY_NAME="Linux"\nNAME="Linux"\nVERSION_ID="99"\nVERSION="99 (asd)"\nID=Linux' > /etc/os-release

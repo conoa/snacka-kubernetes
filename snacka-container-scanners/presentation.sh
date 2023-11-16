@@ -29,7 +29,11 @@ trivy image docker.io/nginx:alpine
 
 docker build . --target production -t frontend:production
 trivy image frontend:production
-grype frontend:latest
+grype frontend:production
+
+docker build . --target zero -t frontend:zero
+trivy image frontend:zero
+grype frontend:zero
 
 
 trivy image --format spdx-json docker.io/nginx:alpine > nginx-sbom.json
