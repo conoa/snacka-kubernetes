@@ -10,3 +10,5 @@ Repository for snacka-kubernetes demos
 * Snacka Kustomize (Fredrik)
 * Snacka Admission Controllers (Fredrik)
 * Snacka WASM (Fredrik)
+* Snacka Containerskanners (Linus)
+* Snacka Pod Security Standards (PSS) (Linus)

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: ubuntu-hostpid
+  name: ubuntu-hostpid
+spec:
+  containers:
+  - image: ubuntu
+    name: ubuntu-hostpid
+    command:
+      - sleep
+      - "12000"
+  hostPID: true

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: nginx
+  name: nginx
+spec:
+  containers:
+  - image: nginxinc/nginx-unprivileged:alpine
+    name: nginx
+    securityContext:
+      seccompProfile:
+        type: "RuntimeDefault"
+      runAsNonRoot: true
+      runAsUser: 10000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL

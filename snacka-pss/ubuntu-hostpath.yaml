@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: ubuntu-hostpath
+  name: ubuntu-hostpath
+spec:
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: ubuntu
+      name: ubuntu-hostpath
+      volumeMounts:
+        - name: host
+          mountPath: /host
+  volumes:
+    - name: host
+      hostPath:
+        path: /
+        type: Directory
