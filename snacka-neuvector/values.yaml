@@ -1,0 +1,7 @@
+# Set a bootstrap password. If leave empty, default admin password used.
+controller:
+  replicas: 1
+cve:
+  scanner:
+    enabled: true
+    replicas: 1

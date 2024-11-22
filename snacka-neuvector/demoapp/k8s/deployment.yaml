@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: demoapp
+  name: demoapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demoapp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demoapp
+    spec:
+      containers:
+      - image: docker.io/talavis/nvdemo:demoapp
+        imagePullPolicy: Always
+        name: demoapp
+        ports:
+          - name: http
+            containerPort: 8000
+        env:
+          - name: GUNICORN_CMD_ARGS
+            value: "--bind=0.0.0.0:8000 --workers=2 --thread=4 --worker-class=gthread --forwarded-allow-ips='*' --access-logfile -"
+        volumeMounts:
+          - name: config
+            mountPath: /code/config.json
+            subPath: config.json
+            readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: config
